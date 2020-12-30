@@ -1,7 +1,5 @@
 package com.bilibli.local.city.stat.commom;
 
-import eud.bupt.liujun.ImageStat;
-
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -11,24 +9,21 @@ import java.util.Set;
 
 public class ImageUtil {
 
+
     public static void main(String[] args) throws Exception {
         BufferedImage image = ImageIO.read(new URL("http://i2.hdslb.com/bfs/archive/25e4214d7a5baca3b2fa17d05574a74abce7aa26.jpg"));
         double ss = getSameLineRate(image);
         System.out.println(ss);
     }
 
-    public static ImageStat getPictureStat(String url) {
+    public static ImageStat getPictureStat(String url) throws Exception {
         ImageStat imageStat = new ImageStat();
-        try {
-            BufferedImage image = ImageIO.read(new URL(url));
-            imageStat.size = getSize(image);
-            imageStat.colorRate = getColorCoverRate(image);
-            imageStat.sameLineRate = getSameLineRate(image);
-            return imageStat;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
+        BufferedImage image = ImageIO.read(new URL(url));
+        imageStat.size = getSize(image);
+        imageStat.colorRate = getColorCoverRate(image);
+        imageStat.sameLineRate = getSameLineRate(image);
+        imageStat.colors = (int) imageStat.colorRate * imageStat.size;
+        return imageStat;
     }
 
     public static int getSize(BufferedImage image) {
@@ -126,5 +121,15 @@ public class ImageUtil {
         public int xEnd;
         public int yStart;
         private int yEnd;
+    }
+
+    public static class ImageStat {
+        public int size;
+        public double colorRate;
+        public double sameLineRate;
+        public int colors;
+
+        public ImageStat() {
+        }
     }
 }

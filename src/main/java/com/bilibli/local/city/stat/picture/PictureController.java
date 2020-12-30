@@ -7,7 +7,6 @@ import com.bilibli.local.city.stat.commom.ImageUtil;
 import com.jdcloud.sdk.utils.StringUtils;
 import eud.bupt.liujun.FileUtil;
 import eud.bupt.liujun.HttpUtil;
-import eud.bupt.liujun.ImageStat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -82,28 +81,55 @@ public class PictureController {
     @PostConstruct
     public void statPicture() throws InterruptedException {
         //创建线程池
-        long t1 = System.currentTimeMillis();
         ThreadPoolExecutor executor = new ThreadPoolExecutor(20, 20,
                 10L, TimeUnit.SECONDS, new LinkedBlockingQueue());
-        FileUtil.appendFile(outputPath, "封面,文字,相似行数");
+        FileUtil.appendFile(outputPath, "封面,是否badcase,文本,命中长文本");
         for (int i = 0; i < 100; i++) {
             List<PictureDO> data = pictureDAO.list(i, Integer.MAX_VALUE);
             Map<Long, String> coverMap = getCover(data);
             for (PictureDO pictureDO : data) {
                 executor.submit(() -> {
+                    boolean flag = false;
+                    boolean flag1 = false;
+                    String words = "";
                     String cover = coverMap.get(pictureDO.getDynamic_id());
-                    ImageStat imageStat = ImageUtil.getPictureStat(cover);
-                    if (imageStat.sameLineRate > 0.3) {
-                        String words = getPictureWords(cover);
-                        FileUtil.appendFile(outputPath, String.format("%s,%s,%d", cover, words, imageStat.sameLineRate));
+                    if (cover != null && cover.contains(".gif")) {
+                        flag = true;
+                    } else {
+                        try {
+                            ImageUtil.ImageStat imageStat = ImageUtil.getPictureStat(cover);
+                            flag = heatRule(imageStat);
+                            if (!flag && imageStat.sameLineRate > 0) {
+                                words = getPictureWords(cover);
+                                if (words != null && words.length() > 20) {
+                                    flag = true;
+                                    flag1 = true;
+                                }
+                            }
+                        } catch (Exception e) {
+                            System.out.println("get cover stat failed,cover:" + cover);
+                        }
                     }
+                    FileUtil.appendFile(outputPath, String.format("%s,%b,%s,%b", cover, flag, words, flag1));
                 });
             }
             while (executor.getQueue().size() > 100) {
-                System.out.println(executor.getQueue().size());
                 Thread.sleep(2000);
             }
         }
+    }
+
+    private boolean heatRule(ImageUtil.ImageStat imageStat) {
+        if (imageStat.colors < 100) {
+            return true;
+        }
+        if (imageStat.sameLineRate > 0.5) {
+            return true;
+        }
+        if (imageStat.size < 80000 && imageStat.colors < 18000) {
+            return true;
+        }
+        return false;
     }
 
     private Map<Long, String> getCover(List<PictureDO> data) {
@@ -192,14 +218,10 @@ public class PictureController {
         JSONObject param = new JSONObject();
         param.put("url", url);
         String json = HttpUtil.PostWithJsonString(OcrUrl, param.toJSONString());
-        try {
-            if (json != null) {
-                JSONObject rsp = JSON.parseObject(json);
-                return rsp.getString("ocrText");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (json != null) {
+            JSONObject rsp = JSON.parseObject(json);
+            return rsp.getString("ocrText");
         }
-        return null;
+        return "";
     }
 }
