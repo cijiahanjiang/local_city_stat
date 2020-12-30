@@ -10,8 +10,8 @@ import java.util.List;
 @Mapper
 public interface PictureDAO {
 
-    @Select("SELECT * from t_city_pool_${city_id} where ctime>#{time} and id<#{offset} order by id desc limit 100")
-    List<PictureDO> list(@Param("city_id") int city, @Param("offset") int offset, @Param("time") String time);
+    @Select("SELECT * from t_city_pool_${city_id} where id<#{offset} order by id desc limit 100")
+    List<PictureDO> list(@Param("city_id") int city, @Param("offset") int offset);
 
     @Select("SELECT * from cover where id>#{offset}  order by id limit 200")
     List<PictureDO> getFromLocal(int offset);

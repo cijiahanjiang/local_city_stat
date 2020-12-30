@@ -12,8 +12,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.text.SimpleDateFormat;
-import java.util.*;
+import javax.annotation.PostConstruct;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -23,148 +26,149 @@ import java.util.concurrent.TimeUnit;
 public class PictureController {
     private static final String outputPath = "/home/dev/liujun/picture_stat.txt";
 
+    private static final String OcrUrl = "http://grpc-proxy.bilibili.co/main.account-law.filter-image-service/filter_image.service.v1.FilterImage/FilterImage";
+
     @Autowired
     private PictureDAO pictureDAO;
 
     //    @PostConstruct
-    public int fetchOnlineData() {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(80, 80,
-                10L, TimeUnit.SECONDS, new LinkedBlockingQueue());
-        try {
-            long currentTime = System.currentTimeMillis();
-            Calendar calendar = Calendar.getInstance();
-            calendar.add(Calendar.HOUR_OF_DAY, -4);
-            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            String time = simpleDateFormat.format(calendar.getTime());
-            FileUtil.appendFile(outputPath, "动态,封面,色彩丰富度,相似行数,");
-            for (int i = 0; i < 100; i++) {
-                int offset = Integer.MAX_VALUE;
-                List<PictureDO> data = pictureDAO.list(i, offset, time);
-                while (data.size() > 0) {
-                    Map<Integer, String> coverMap = getCover(data);
-                    for (PictureDO pictureDO : data) {
-                        offset = pictureDO.getId();
-                        String cover = coverMap.get(pictureDO.getRid());
-                        if (cover != null) {
-                            if (cover.endsWith("webp")) {
-                                continue;
-                            }
-                            if (cover.endsWith("gif")) {
+//    public int fetchOnlineData() {
+//        ThreadPoolExecutor executor = new ThreadPoolExecutor(80, 80,
+//                10L, TimeUnit.SECONDS, new LinkedBlockingQueue());
+//        try {
+//            long currentTime = System.currentTimeMillis();
+//            Calendar calendar = Calendar.getInstance();
+//            calendar.add(Calendar.HOUR_OF_DAY, -4);
+//            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+//            String time = simpleDateFormat.format(calendar.getTime());
+//            FileUtil.appendFile(outputPath, "动态,封面,色彩丰富度,相似行数,");
+//            for (int i = 0; i < 100; i++) {
+//                int offset = Integer.MAX_VALUE;
+//                List<PictureDO> data = pictureDAO.list(i, offset, time);
+//                while (data.size() > 0) {
+//                    Map<Integer, String> coverMap = getCover(data);
+//                    for (PictureDO pictureDO : data) {
+//                        offset = pictureDO.getId();
+//                        String cover = coverMap.get(pictureDO.getRid());
+//                        if (cover != null) {
+//                            if (cover.endsWith("webp")) {
+//                                continue;
+//                            }
+//                            if (cover.endsWith("gif")) {
 //                                FileUtil.appendFile(outputPath, String.format("https://t.bilibili.com/%d,%s,%d,%d,%d", pictureDO.getDynamic_id(), cover, -1, -1, -2));
-                            } else {
-                                executor.submit(() -> {
-                                    ImageUtil.getPictureStat(cover);
-                                });
-                            }
-                        }
-                    }
-                    while (executor.getQueue().size() > 20) {
-                        System.out.println(executor.getQueue().size());
-                        Thread.sleep(2000);
-                    }
-                    System.out.println("try to get next data:" + offset + ",table:" + i);
-                    data = pictureDAO.list(i, offset, time);
-                }
-            }
-            System.out.println("job done:" + (System.currentTimeMillis() - currentTime));
-            return 1;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return 0;
-        }
-    }
+//                            } else {
+//                                executor.submit(() -> {
+//                                    ImageUtil.getPictureStat(cover);
+//                                });
+//                            }
+//                        }
+//                    }
+//                    while (executor.getQueue().size() > 20) {
+//                        System.out.println(executor.getQueue().size());
+//                        Thread.sleep(2000);
+//                    }
+//                    System.out.println("try to get next data:" + offset + ",table:" + i);
+//                    data = pictureDAO.list(i, offset, time);
+//                }
+//            }
+//            System.out.println("job done:" + (System.currentTimeMillis() - currentTime));
+//            return 1;
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//            return 0;
+//        }
+//    }
 
-    //    @PostConstruct
+    @PostConstruct
     public void statPicture() throws InterruptedException {
         //创建线程池
         long t1 = System.currentTimeMillis();
         ThreadPoolExecutor executor = new ThreadPoolExecutor(20, 20,
                 10L, TimeUnit.SECONDS, new LinkedBlockingQueue());
-        int offset = 0;
-        List<PictureDO> data = pictureDAO.getFromLocal(offset);
-        while (data.size() > 0) {
+        FileUtil.appendFile(outputPath, "封面,文字,相似行数");
+        for (int i = 0; i < 100; i++) {
+            List<PictureDO> data = pictureDAO.list(i, Integer.MAX_VALUE);
+            Map<Long, String> coverMap = getCover(data);
             for (PictureDO pictureDO : data) {
-                offset = pictureDO.getId();
                 executor.submit(() -> {
-                    if (pictureDO.getCover_url().contains(".gif")) {
-                        return;
+                    String cover = coverMap.get(pictureDO.getDynamic_id());
+                    ImageStat imageStat = ImageUtil.getPictureStat(cover);
+                    if (imageStat.sameLineRate > 0.3) {
+                        String words = getPictureWords(cover);
+                        FileUtil.appendFile(outputPath, String.format("%s,%s,%d", cover, words, imageStat.sameLineRate));
                     }
-                    System.out.println(JSON.toJSONString(pictureDO));
-                    ImageStat imageStat = ImageUtil.getPictureStat(pictureDO.getCover_url());
-                    pictureDAO.updateAll(pictureDO.getId(), imageStat.sameLineRate, imageStat.colorRate, imageStat.size);
                 });
             }
             while (executor.getQueue().size() > 100) {
                 System.out.println(executor.getQueue().size());
                 Thread.sleep(2000);
             }
-            data = pictureDAO.getFromLocal(offset);
-        }
-        System.out.println(System.currentTimeMillis() - t1);
-    }
-
-    //    @PostConstruct
-    public void fixData() throws Exception {
-        List<String> sa = FileUtil.readByLine("/home/dev/liujun/tmp.txt");
-        for (int i = 0; i < sa.size(); i++) {
-            System.out.println(sa.get(i));
-            String[] s = sa.get(i).split("\t");
-            pictureDAO.updateBadData(s[0], s[1]);
-            Thread.sleep(50);
         }
     }
 
-    private Map<Integer, String> getCover(List<PictureDO> data) {
-        List<Integer> picturesToFetchCover = new LinkedList<>();
-        List<Integer> videosToFetchCover = new LinkedList<>();
-        Map<Integer, String> coverMap = new HashMap();
+    private Map<Long, String> getCover(List<PictureDO> data) {
+        List<PictureDO> pictureList = new LinkedList<>();
+        List<PictureDO> videoList = new LinkedList<>();
+        Map<Long, String> coverMap = new HashMap();
         //区分
         for (PictureDO pictureDO : data) {
             if (StringUtils.isNotBlank(pictureDO.getVertical_cover())) {
-                coverMap.put(pictureDO.getRid(), pictureDO.getVertical_cover());
+                coverMap.put(pictureDO.getDynamic_id(), pictureDO.getVertical_cover());
                 continue;
             }
             if (StringUtils.isNotBlank(pictureDO.getCover_url())) {
-                coverMap.put(pictureDO.getRid(), pictureDO.getCover_url());
+                coverMap.put(pictureDO.getDynamic_id(), pictureDO.getCover_url());
                 continue;
             }
             if (pictureDO.getType() == 2) {
-                picturesToFetchCover.add(pictureDO.getRid());
+                pictureList.add(pictureDO);
             } else if (pictureDO.getType() == 8) {
-                videosToFetchCover.add(pictureDO.getRid());
+                videoList.add(pictureDO);
             }
         }
         //批量拉取封面
-        if (picturesToFetchCover.size() > 0) {
-            getPictureCover(picturesToFetchCover, coverMap);
+        if (pictureList.size() > 0) {
+            Map<Long, String> picMap = getPictureCover(pictureList);
+            coverMap.putAll(picMap);
         }
-        if (videosToFetchCover.size() > 0) {
-            getVideoCover(videosToFetchCover, coverMap);
+        if (videoList.size() > 0) {
+            Map<Long, String> videoMap = getVideoCover(videoList);
+            coverMap.putAll(videoMap);
         }
         return coverMap;
     }
 
-    private void getVideoCover(List<Integer> rids, Map<Integer, String> coverMap) {
+    private Map<Long, String> getVideoCover(List<PictureDO> data) {
         String url = "http://grpc-proxy.bilibili.co/archive.service/archive.service.v1.Archive/Arcs";
+        Map<Integer, Long> ridMap = new HashMap<>();
+        for (PictureDO pictureDO : data) {
+            ridMap.put(pictureDO.getRid(), pictureDO.getDynamic_id());
+        }
+        Map<Long, String> result = new HashMap<>();
         JSONObject param = new JSONObject();
-        param.put("aids", rids);
+        param.put("aids", ridMap.keySet());
         String rsp = HttpUtil.PostWithJsonString(url, param.toJSONString());
         if (rsp != null) {
             JSONObject jsonObject = JSON.parseObject(rsp);
             if (jsonObject.containsKey("arcs")) {
                 JSONObject items = jsonObject.getJSONObject("arcs");
                 for (String key : items.keySet()) {
-                    coverMap.put(Integer.valueOf(key), items.getJSONObject(key).getString("Pic"));
+                    result.put(ridMap.get(Integer.valueOf(key)), items.getJSONObject(key).getString("Pic"));
                 }
             }
         }
-        return;
+        return result;
     }
 
-    private void getPictureCover(List<Integer> rids, Map<Integer, String> coverMap) {
+    private Map<Long, String> getPictureCover(List<PictureDO> data) {
+        Map<Integer, Long> ridMap = new HashMap<>();
+        for (PictureDO pictureDO : data) {
+            ridMap.put(pictureDO.getRid(), pictureDO.getDynamic_id());
+        }
+        Map<Long, String> result = new HashMap<>();
         String url = "http://api.vc.bilibili.co/link_draw/v0/Doc/dynamicDetails";
         JSONObject param = new JSONObject();
-        param.put("ids", rids);
+        param.put("ids", ridMap.keySet());
         String json = HttpUtil.PostWithJsonString(url, param.toJSONString());
         try {
             if (json != null) {
@@ -172,7 +176,7 @@ public class PictureController {
                 if (rsp.getInteger("code") == 0) {
                     JSONArray jsonArray = rsp.getJSONArray("data");
                     for (int i = 0; i < jsonArray.size(); i++) {
-                        coverMap.put(jsonArray.getJSONObject(i).getJSONObject("item").getInteger("id"),
+                        result.put(ridMap.get(jsonArray.getJSONObject(i).getJSONObject("item").getInteger("id")),
                                 jsonArray.getJSONObject(i).getJSONObject("item").getJSONArray("pictures")
                                         .getJSONObject(0).getString("img_src"));
                     }
@@ -181,6 +185,21 @@ public class PictureController {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return;
+        return result;
+    }
+
+    private String getPictureWords(String url) {
+        JSONObject param = new JSONObject();
+        param.put("url", url);
+        String json = HttpUtil.PostWithJsonString(OcrUrl, param.toJSONString());
+        try {
+            if (json != null) {
+                JSONObject rsp = JSON.parseObject(json);
+                return rsp.getString("ocrText");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }
