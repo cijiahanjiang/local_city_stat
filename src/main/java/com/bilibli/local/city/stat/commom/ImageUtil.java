@@ -1,5 +1,7 @@
 package com.bilibli.local.city.stat.commom;
 
+import com.alibaba.fastjson.JSON;
+
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -11,9 +13,8 @@ public class ImageUtil {
 
 
     public static void main(String[] args) throws Exception {
-        BufferedImage image = ImageIO.read(new URL("http://i2.hdslb.com/bfs/archive/25e4214d7a5baca3b2fa17d05574a74abce7aa26.jpg"));
-        double ss = getSameLineRate(image);
-        System.out.println(ss);
+        ImageStat imageStat = getPictureStat("http://i0.hdslb.com/bfs/archive/29955ca4660a84d33b5051f5fc1e4ce4b93453b4.jpg");
+        System.out.println(JSON.toJSONString(imageStat));
     }
 
     public static ImageStat getPictureStat(String url) throws Exception {
@@ -22,7 +23,7 @@ public class ImageUtil {
         imageStat.size = getSize(image);
         imageStat.colorRate = getColorCoverRate(image);
         imageStat.sameLineRate = getSameLineRate(image);
-        imageStat.colors = (int) imageStat.colorRate * imageStat.size;
+        imageStat.colors = (int) (imageStat.colorRate * imageStat.size);
         return imageStat;
     }
 

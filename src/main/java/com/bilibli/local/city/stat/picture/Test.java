@@ -3,31 +3,42 @@ package com.bilibli.local.city.stat.picture;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.bilibli.local.city.stat.commom.ImageUtil;
 import eud.bupt.liujun.FileUtil;
 import eud.bupt.liujun.HttpUtil;
-import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Test {
 
     private static final String OcrUrl = "http://grpc-proxy.bilibili.co/main.account-law.filter-image-service/filter_image.service.v1.FilterImage/FilterImage";
 
+    private static Map<String, Object> resultMap = new ConcurrentHashMap<>();
 
-    public static void main(String[] args) {
-        List<String> lists = FileUtil.readByLine("/Users/beibei/codes/java/local_city.stat/src/main/resources/tmp.csv");
-        for (String s : lists) {
-            String[] tmp = s.split(",");
-            double same = Double.valueOf(tmp[2]);
-            if (same > 0 && (!StringUtils.hasLength(tmp[1]) || "null".equals(tmp[1]))) {
-                String words = getPictureWords(tmp[0]);
-                FileUtil.appendFile("/Users/beibei/codes/java/local_city.stat/src/main/resources/tmp.txt", String.format("%s,%s,%f", tmp[0], words, same));
-            } else {
-                FileUtil.appendFile("/Users/beibei/codes/java/local_city.stat/src/main/resources/tmp.txt", s);
+    public static void main(String[] args) throws Exception {
+        try {
+            List<String> covers = FileUtil.readByLine("/Users/beibei/codes/java/local_city.stat/src/main/resources/tmp.txt");
 
+            for (String cover : covers) {
+                cover = cover.split(",")[0];
+                if (cover.contains("gif")) {
+                    FileUtil.appendFile("/Users/beibei/codes/java/local_city.stat/src/main/resources/tmp1.txt", String.format("%s,%d,%d,%f,%f,%s", cover, 0, 0, 0.0, 0.0, ""));
+                } else {
+                    ImageUtil.ImageStat imageStat = ImageUtil.getPictureStat(cover);
+                    String words = "";
+                    if (imageStat.sameLineRate > 0) {
+                        words = getPictureWords(cover);
+                    }
+                    FileUtil.appendFile("/Users/beibei/codes/java/local_city.stat/src/main/resources/tmp1.txt", String.format("%s,%d,%d,%f,%f,%s", cover, imageStat.size, imageStat.colors, imageStat.sameLineRate, imageStat.colorRate, words));
+                }
             }
+        } catch (Exception e) {
+
         }
     }
+
 
     private static String getPictureWords(String url) {
         JSONObject param = new JSONObject();

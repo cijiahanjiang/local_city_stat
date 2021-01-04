@@ -10,7 +10,7 @@ import java.util.List;
 @Mapper
 public interface PictureDAO {
 
-    @Select("SELECT * from t_city_pool_${city_id} where id<#{offset} order by id desc limit 10")
+    @Select("SELECT * from t_city_pool_${city_id} where id<#{offset} and online=1 order by id desc limit 10")
     List<PictureDO> list(@Param("city_id") int city, @Param("offset") int offset);
 
     @Select("SELECT * from cover where id>#{offset}  order by id limit 200")

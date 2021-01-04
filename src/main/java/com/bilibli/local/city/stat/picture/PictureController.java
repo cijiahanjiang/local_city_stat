@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -24,99 +25,70 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("picture")
 public class PictureController {
     private static final String outputPath = "/home/dev/liujun/picture_stat.txt";
+    private static final String errorResult = "/home/dev/liujun/picture_error.txt";
 
     private static final String OcrUrl = "http://grpc-proxy.bilibili.co/main.account-law.filter-image-service/filter_image.service.v1.FilterImage/FilterImage";
 
     @Autowired
     private PictureDAO pictureDAO;
 
-    //    @PostConstruct
-//    public int fetchOnlineData() {
-//        ThreadPoolExecutor executor = new ThreadPoolExecutor(80, 80,
-//                10L, TimeUnit.SECONDS, new LinkedBlockingQueue());
-//        try {
-//            long currentTime = System.currentTimeMillis();
-//            Calendar calendar = Calendar.getInstance();
-//            calendar.add(Calendar.HOUR_OF_DAY, -4);
-//            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-//            String time = simpleDateFormat.format(calendar.getTime());
-//            FileUtil.appendFile(outputPath, "动态,封面,色彩丰富度,相似行数,");
-//            for (int i = 0; i < 100; i++) {
-//                int offset = Integer.MAX_VALUE;
-//                List<PictureDO> data = pictureDAO.list(i, offset, time);
-//                while (data.size() > 0) {
-//                    Map<Integer, String> coverMap = getCover(data);
-//                    for (PictureDO pictureDO : data) {
-//                        offset = pictureDO.getId();
-//                        String cover = coverMap.get(pictureDO.getRid());
-//                        if (cover != null) {
-//                            if (cover.endsWith("webp")) {
-//                                continue;
-//                            }
-//                            if (cover.endsWith("gif")) {
-//                                FileUtil.appendFile(outputPath, String.format("https://t.bilibili.com/%d,%s,%d,%d,%d", pictureDO.getDynamic_id(), cover, -1, -1, -2));
-//                            } else {
-//                                executor.submit(() -> {
-//                                    ImageUtil.getPictureStat(cover);
-//                                });
-//                            }
-//                        }
-//                    }
-//                    while (executor.getQueue().size() > 20) {
-//                        System.out.println(executor.getQueue().size());
-//                        Thread.sleep(2000);
-//                    }
-//                    System.out.println("try to get next data:" + offset + ",table:" + i);
-//                    data = pictureDAO.list(i, offset, time);
-//                }
-//            }
-//            System.out.println("job done:" + (System.currentTimeMillis() - currentTime));
-//            return 1;
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//            return 0;
-//        }
-//    }
-
     @PostConstruct
     public void statPicture() throws InterruptedException {
         //创建线程池
         ThreadPoolExecutor executor = new ThreadPoolExecutor(20, 20,
                 10L, TimeUnit.SECONDS, new LinkedBlockingQueue());
-        FileUtil.appendFile(outputPath, "封面,是否badcase,文本,命中长文本");
+        FileUtil.appendFile(outputPath, "封面,相似行数,大小,色彩丰富度,色彩数,文本");
+        Map<String, Object> resultMap = new ConcurrentHashMap<>();
         for (int i = 0; i < 100; i++) {
             List<PictureDO> data = pictureDAO.list(i, Integer.MAX_VALUE);
             Map<Long, String> coverMap = getCover(data);
             for (PictureDO pictureDO : data) {
                 executor.submit(() -> {
-                    boolean flag = false;
-                    boolean flag1 = false;
                     String words = "";
                     String cover = coverMap.get(pictureDO.getDynamic_id());
-                    if (cover != null && cover.contains(".gif")) {
-                        flag = true;
+                    if (cover == null) {
+                        System.out.println("get cover failed,dynamic:" + pictureDO.getDynamic_id());
+                        return;
+                    }
+                    if (cover.contains(".gif")) {
+                        resultMap.put(cover + ",-1,-1,-1,-1,", 1);
+                        return;
                     } else {
+                        ImageUtil.ImageStat imageStat = null;
                         try {
-                            ImageUtil.ImageStat imageStat = ImageUtil.getPictureStat(cover);
-                            flag = heatRule(imageStat);
-                            if (!flag && imageStat.sameLineRate > 0) {
-                                words = getPictureWords(cover);
-                                if (words != null && words.length() > 20) {
-                                    flag = true;
-                                    flag1 = true;
-                                }
-                            }
+                            imageStat = ImageUtil.getPictureStat(cover);
                         } catch (Exception e) {
                             System.out.println("get cover stat failed,cover:" + cover);
+                            return;
                         }
+                        if (imageStat != null && imageStat.sameLineRate > 0) {
+                            words = getPictureWords(cover);
+                            if ("-1".equals(words)) {
+                                System.out.println("get cover words failed,cover:" + cover);
+                                FileUtil.appendFile(errorResult, cover);
+                                return;
+                            }
+                        }
+                        resultMap.put(String.format("%s,%f,%d,%f,%d,%s", cover, imageStat.sameLineRate, imageStat.size, imageStat.colorRate, imageStat.colors, words), 1);
                     }
-                    FileUtil.appendFile(outputPath, String.format("%s,%b,%s,%b", cover, flag, words, flag1));
                 });
             }
             while (executor.getQueue().size() > 100) {
                 Thread.sleep(2000);
             }
         }
+        executor.shutdown();
+        while (true) {
+            if (executor.isTerminated()) {
+                break;
+            }
+            Thread.sleep(2000);
+        }
+        System.out.println(resultMap.size());
+        for (String s : resultMap.keySet()) {
+            FileUtil.appendFile(outputPath, s);
+        }
+
     }
 
     private boolean heatRule(ImageUtil.ImageStat imageStat) {
@@ -222,6 +194,6 @@ public class PictureController {
             JSONObject rsp = JSON.parseObject(json);
             return rsp.getString("ocrText");
         }
-        return "";
+        return "-1";
     }
 }
