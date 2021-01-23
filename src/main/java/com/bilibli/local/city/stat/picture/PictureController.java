@@ -32,7 +32,6 @@ public class PictureController {
     @Autowired
     private PictureDAO pictureDAO;
 
-    @PostConstruct
     public void statPicture() throws InterruptedException {
         //创建线程池
         ThreadPoolExecutor executor = new ThreadPoolExecutor(20, 20,
@@ -186,7 +185,7 @@ public class PictureController {
         return result;
     }
 
-    private String getPictureWords(String url) {
+    private static String getPictureWords(String url) {
         JSONObject param = new JSONObject();
         param.put("url", url);
         String json = HttpUtil.PostWithJsonString(OcrUrl, param.toJSONString());
@@ -196,4 +195,5 @@ public class PictureController {
         }
         return "-1";
     }
+
 }
