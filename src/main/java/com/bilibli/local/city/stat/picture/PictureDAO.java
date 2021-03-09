@@ -24,4 +24,13 @@ public interface PictureDAO {
 
     @Update("update t_city_pool_${city_id} set online=0,status=2 where dynamic_id=#{dynamic_id}")
     int updateBadData(@Param("city_id") String city, @Param("dynamic_id") String dynamic_id);
+
+    @Select("SELECT * from t_city_pool_1 where src_type=9 and id<#{id} order by id desc limit 100")
+    List<PictureDO> getBadCover(@Param("id") int id);
+
+    @Select("SELECT * from t_city_pool_1 where vertical_cover!='' order by id desc limit 1000")
+    List<PictureDO> getVerticalVideo();
+
+    @Select("SELECT * from t_city_pool_1 where id<#{id} and online=1 order by id desc limit 100")
+    List<PictureDO> getCover(@Param("id") int id);
 }

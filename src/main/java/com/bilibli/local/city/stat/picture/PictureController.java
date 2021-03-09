@@ -26,11 +26,37 @@ import java.util.concurrent.TimeUnit;
 public class PictureController {
     private static final String outputPath = "/home/dev/liujun/picture_stat.txt";
     private static final String errorResult = "/home/dev/liujun/picture_error.txt";
+    private static final String badCover = "/home/dev/liujun/bad_cover.txt";
+    private static final String vertical = "/home/dev/liujun/vertical_video.csv";
+    private static final String cover = "/home/dev/liujun/cover.csv";
 
     private static final String OcrUrl = "http://grpc-proxy.bilibili.co/main.account-law.filter-image-service/filter_image.service.v1.FilterImage/FilterImage";
 
     @Autowired
     private PictureDAO pictureDAO;
+
+//    @PostConstruct
+    public void getBadCoverUrl() {
+        int id = Integer.MAX_VALUE;
+        int count = 0;
+        while (count < 5000) {
+            List<PictureDO> data = pictureDAO.getCover(id);
+            id = data.get(data.size() - 1).getId();
+            Map<Long, String> covers = getCover(data);
+            count += covers.size();
+            for (Long dynamicId : covers.keySet()) {
+                FileUtil.appendFile(cover, String.format("http://t.bilibili.com/%d,%s", dynamicId, covers.get(dynamicId)));
+            }
+        }
+    }
+//
+//    @PostConstruct
+//    public void getVerticalVideo() {
+//        List<PictureDO> data = pictureDAO.getVerticalVideo();
+//        for (PictureDO pictureDO : data) {
+//            FileUtil.appendFile(vertical, String.format("http://t.bilibili.com/%d,%d", pictureDO.getDynamic_id(), pictureDO.getRid()));
+//        }
+//    }
 
     public void statPicture() throws InterruptedException {
         //创建线程池

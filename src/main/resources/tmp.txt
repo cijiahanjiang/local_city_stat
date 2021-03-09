@@ -1,1 +1,0 @@
-curl -X POST  -H "Content-Type: application/json" http://grpc-proxy.bilibili.co/main.account-law.filter-image-service/filter_image.service.v1.FilterImage/FilterImage -d '{"url":"http://uat-i0.hdslb.com/bfs/album/47db321f1f85cd67f4713f64d01a5ae4cb4bb6ee.png"}'
