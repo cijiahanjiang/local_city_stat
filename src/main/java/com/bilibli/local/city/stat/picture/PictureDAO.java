@@ -1,5 +1,6 @@
 package com.bilibli.local.city.stat.picture;
 
+import com.bilibli.local.city.stat.new_user.CityDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -12,6 +13,9 @@ public interface PictureDAO {
 
     @Select("SELECT * from t_city_pool_${city_id} where id<#{offset} and online=1 order by id desc limit 10")
     List<PictureDO> list(@Param("city_id") int city, @Param("offset") int offset);
+
+    @Select("SELECT * from t_city_pool_${city_id} where id<#{offset} and src_type=9 order by id desc limit 200")
+    List<PictureDO> listBadCover(@Param("city_id") int city, @Param("offset") int offset);
 
     @Select("SELECT * from cover where id>#{offset}  order by id limit 200")
     List<PictureDO> getFromLocal(int offset);
@@ -33,4 +37,7 @@ public interface PictureDAO {
 
     @Select("SELECT * from t_city_pool_1 where id<#{id} and online=1 order by id desc limit 100")
     List<PictureDO> getCover(@Param("id") int id);
+
+    @Select("SELECT id,city_name from t_city_info where status=0")
+    List<CityDO> getCity();
 }

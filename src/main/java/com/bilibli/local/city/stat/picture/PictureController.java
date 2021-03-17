@@ -35,7 +35,6 @@ public class PictureController {
     @Autowired
     private PictureDAO pictureDAO;
 
-//    @PostConstruct
     public void getBadCoverUrl() {
         int id = Integer.MAX_VALUE;
         int count = 0;
@@ -49,15 +48,15 @@ public class PictureController {
             }
         }
     }
-//
-//    @PostConstruct
-//    public void getVerticalVideo() {
-//        List<PictureDO> data = pictureDAO.getVerticalVideo();
-//        for (PictureDO pictureDO : data) {
-//            FileUtil.appendFile(vertical, String.format("http://t.bilibili.com/%d,%d", pictureDO.getDynamic_id(), pictureDO.getRid()));
-//        }
-//    }
 
+    public void getVerticalVideo() {
+        List<PictureDO> data = pictureDAO.getVerticalVideo();
+        for (PictureDO pictureDO : data) {
+            FileUtil.appendFile(vertical, String.format("http://t.bilibili.com/%d,%d", pictureDO.getDynamic_id(), pictureDO.getRid()));
+        }
+    }
+
+    @PostConstruct
     public void statPicture() throws InterruptedException {
         //创建线程池
         ThreadPoolExecutor executor = new ThreadPoolExecutor(20, 20,
@@ -65,7 +64,7 @@ public class PictureController {
         FileUtil.appendFile(outputPath, "封面,相似行数,大小,色彩丰富度,色彩数,文本");
         Map<String, Object> resultMap = new ConcurrentHashMap<>();
         for (int i = 0; i < 100; i++) {
-            List<PictureDO> data = pictureDAO.list(i, Integer.MAX_VALUE);
+            List<PictureDO> data = pictureDAO.listBadCover(i, Integer.MAX_VALUE);
             Map<Long, String> coverMap = getCover(data);
             for (PictureDO pictureDO : data) {
                 executor.submit(() -> {
@@ -76,25 +75,30 @@ public class PictureController {
                         return;
                     }
                     if (cover.contains(".gif")) {
-                        resultMap.put(cover + ",-1,-1,-1,-1,", 1);
                         return;
-                    } else {
-                        ImageUtil.ImageStat imageStat = null;
-                        try {
-                            imageStat = ImageUtil.getPictureStat(cover);
-                        } catch (Exception e) {
-                            System.out.println("get cover stat failed,cover:" + cover);
+                    }
+                    try {
+                        ImageUtil.ImageStat imageStat = ImageUtil.getPictureStat(cover);
+                        words = getPictureWords(cover);
+                        if (imageStat.colors < 100) {
+                            resultMap.put(String.format("%s,%d", cover, 1), 1);
                             return;
                         }
-                        if (imageStat != null && imageStat.sameLineRate > 0) {
-                            words = getPictureWords(cover);
-                            if ("-1".equals(words)) {
-                                System.out.println("get cover words failed,cover:" + cover);
-                                FileUtil.appendFile(errorResult, cover);
-                                return;
-                            }
+                        if (imageStat.sameLineRate < 50) {
+                            resultMap.put(String.format("%s,%d", cover, 2), 1);
+                            return;
                         }
-                        resultMap.put(String.format("%s,%f,%d,%f,%d,%s", cover, imageStat.sameLineRate, imageStat.size, imageStat.colorRate, imageStat.colors, words), 1);
+                        if (imageStat.size < 80000 && imageStat.colors < 18000) {
+                            resultMap.put(String.format("%s,%d", cover, 3), 1);
+                            return;
+                        }
+                        if (words.length() > 50) {
+                            resultMap.put(String.format("%s,%d", cover, 3), 1);
+                            return;
+                        }
+                    } catch (Exception e) {
+                        System.out.println("get cover stat failed,cover:" + cover);
+                        return;
                     }
                 });
             }
@@ -151,12 +155,18 @@ public class PictureController {
         }
         //批量拉取封面
         if (pictureList.size() > 0) {
-            Map<Long, String> picMap = getPictureCover(pictureList);
-            coverMap.putAll(picMap);
+            for (int i = 0; i < pictureList.size(); i += 20) {
+                Map<Long, String> picMap = getPictureCover(pictureList.subList(i, Math.min(i + 20, pictureList.size())));
+                System.out.println("batch get picture cover size：" + picMap.size());
+                coverMap.putAll(picMap);
+            }
         }
         if (videoList.size() > 0) {
-            Map<Long, String> videoMap = getVideoCover(videoList);
-            coverMap.putAll(videoMap);
+            for (int i = 0; i < videoList.size(); i += 20) {
+                Map<Long, String> videoMap = getVideoCover(videoList.subList(i, Math.min(i + 20, videoList.size())));
+                System.out.println("batch get picture cover size：" + videoMap.size());
+                coverMap.putAll(videoMap);
+            }
         }
         return coverMap;
     }

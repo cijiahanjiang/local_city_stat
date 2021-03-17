@@ -13,7 +13,7 @@ public class ImageUtil {
 
 
     public static void main(String[] args) throws Exception {
-        ImageStat imageStat = getPictureStat("http://i0.hdslb.com/bfs/archive/29955ca4660a84d33b5051f5fc1e4ce4b93453b4.jpg");
+        ImageStat imageStat = getPictureStat("https://i0.hdslb.com/bfs/album/c2ea0214af1937d1e2aa378391f4ac259223fc94.jpg");
         System.out.println(JSON.toJSONString(imageStat));
     }
 
