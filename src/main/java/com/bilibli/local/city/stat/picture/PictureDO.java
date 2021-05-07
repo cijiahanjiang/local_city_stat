@@ -18,6 +18,8 @@ public class PictureDO {
 
     private long size;
 
+    private long src_type;
+
     public int getId() {
         return id;
     }
@@ -80,5 +82,13 @@ public class PictureDO {
 
     public void setSize(long size) {
         this.size = size;
+    }
+
+    public long getSrc_type() {
+        return src_type;
+    }
+
+    public void setSrc_type(long src_type) {
+        this.src_type = src_type;
     }
 }

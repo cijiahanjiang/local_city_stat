@@ -2,19 +2,18 @@ package com.bilibli.local.city.stat.new_user;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.bilibli.local.city.stat.picture.PictureDAO;
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.NameValuePair;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
+import org.apache.commons.httpclient.params.HttpMethodParams;
 import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,53 +21,70 @@ import java.util.Map;
 @RestController
 public class NewUserController {
 
-    @Autowired
-    private PictureDAO pictureDAO;
-
     private static final String path = "/Users/beibei/codes/java/local_city.stat/src/main/resources/同城投放内容/";
-
 
     private static final String DYNAMIC_DETAIL_URL = "https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/get_dynamic_detail?dynamic_id=%d";
 
-    public void run() {
-
-    }
-
-    public static Map<String, Integer> CITY_MAP = new HashMap<>();
-
-    static {
-        CITY_MAP.put("上海", 1);
-        CITY_MAP.put("杭州", 2);
-        CITY_MAP.put("广州", 3);
-        CITY_MAP.put("成都", 4);
-        CITY_MAP.put("太原", 6);
-        CITY_MAP.put("深圳", 7);
-        CITY_MAP.put("重庆", 8);
-        CITY_MAP.put("武汉", 9);
-        CITY_MAP.put("南京", 10);
-        CITY_MAP.put("天津", 11);
-        CITY_MAP.put("西安", 12);
-        CITY_MAP.put("长沙", 13);
-        CITY_MAP.put("东莞", 14);
-        CITY_MAP.put("郑州", 15);
-        CITY_MAP.put("苏州", 16);
-        CITY_MAP.put("合肥", 17);
-        CITY_MAP.put("福州", 18);
-    }
-
     public static void main(String[] args) {
-        File file = new File(path);
-        String[] fileNames = file.list();
-        for (String fileName : fileNames) {
-            if (fileName.contains("xlsx")) {
-                readExcel(fileName);
+        readFile();
+    }
+
+    private static Map<String, DynamicDO> readFile() {
+        Map<String, DynamicDO> allData = new HashMap<>();
+        try {
+            FileInputStream inputStream = new FileInputStream("/Users/beibei/codes/java/local_city.stat/src/main/resources/data/上海理工大学.xlsx");
+            XSSFWorkbook xssfWorkbook = new XSSFWorkbook(inputStream);
+            XSSFSheet sheet = xssfWorkbook.getSheetAt(0);
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                String dynamicId = getCellValue(sheet.getRow(i).getCell(0));
+                //调接口拿
+                String rid = getCellValue(sheet.getRow(i).getCell(3));
+                String mid = getCellValue(sheet.getRow(i).getCell(4));
+                String playNum = getCellValue(sheet.getRow(i).getCell(5));
+                DynamicDO dynamicDO = new DynamicDO();
+                dynamicDO.setDynamicId(dynamicId);
+                dynamicDO.setRid(rid);
+                dynamicDO.setMid(mid);
+                dynamicDO.setPlayNum(playNum);
+                allData.put(dynamicId, dynamicDO);
             }
+            XSSFSheet sheet1 = xssfWorkbook.getSheetAt(3);
+//            for (int i = 1; i <= 10; i++) {
+            for (int i = 1; i <= sheet1.getLastRowNum(); i++) {
+                String dynamicId = getCellValue(sheet1.getRow(i).getCell(0));
+                DynamicDO dynamicDO = allData.get(dynamicId);
+                Map<String, String> param = new HashMap<>();
+                param.put("city_id", "1");
+                param.put("dynamic_id", dynamicId);
+                param.put("uid", dynamicDO.getMid());
+                param.put("rid", dynamicDO.getRid());
+                param.put("play", dynamicDO.getPlayNum());
+                param.put("school_id", "5");
+                param.put("school_name", "上海财经大学");
+                // 1 上海师范  2复旦 3同济大学 4上海财经大学 5上海理工大学
+                System.out.println(JSON.toJSONString(param));
+                saveData(param);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+        return allData;
+    }
+
+    private static String getCellValue(XSSFCell cell) {
+        if (cell.getCellType() == CellType.STRING) {
+            return cell.getStringCellValue();
+        }
+        if (cell.getCellType() == CellType.NUMERIC) {
+            return String.valueOf(cell.getNumericCellValue());
+        }
+        if (cell.getCellType() == CellType.FORMULA) {
+            return String.valueOf(cell.getStringCellValue());
+        }
+        return "";
     }
 
     private static void readExcel(String fileName) {
-        // 读取文件获取工作薄
-        Map<String, Double> dynamicMap = new HashMap<>();
         try {
             // 获取工作表数量
             // 获取工作表
@@ -94,18 +110,19 @@ public class NewUserController {
                 } else {
                     continue;
                 }
-                String dynamicId = row.getCell(0).getStringCellValue();
-                int city = CITY_MAP.get(fileName.split("\\.")[0]);
-                long uid = getUid(Long.valueOf(dynamicId));
-                System.out.println(String.format("city:%d,dynamic:%s,mid:%s,rid:%s,playNums:%s",
-                        city, Long.valueOf(dynamicId), uid, rid.intValue(), playNumbers.intValue()));
+
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static long getUid(long dynamicId) {
+    private static void saveData(Map<String, String> param) {
+
+        postWithForm(param, "http://manager-pre.bilibili.co/x/admin/dynamic/localcity/newuser/add");
+    }
+
+    private static long getRid(long dynamicId) {
         HttpClient httpClient = new HttpClient();
         GetMethod getMethod = new GetMethod(String.format(DYNAMIC_DETAIL_URL, dynamicId));
         try {
@@ -114,7 +131,7 @@ public class NewUserController {
             if (result != null) {
                 JSONObject jsonObject = JSON.parseObject(result);
                 if (jsonObject.getInteger("code") == 0) {
-                    return jsonObject.getJSONObject("data").getJSONObject("card").getJSONObject("desc").getLong("uid");
+                    return jsonObject.getJSONObject("data").getJSONObject("card").getJSONObject("desc").getLong("rid");
                 }
             }
         } catch (Exception e) {
@@ -126,15 +143,17 @@ public class NewUserController {
     private static void postWithForm(Map<String, String> param, String url) {
         try {
             HttpClient httpClient = new HttpClient();
-
             PostMethod postMethod = new PostMethod(url);
             NameValuePair[] nameValuePairs = new NameValuePair[param.size()];
             int index = 0;
             for (String key : param.keySet()) {
                 nameValuePairs[index++] = new NameValuePair(key, param.get(key));
             }
+            postMethod.addRequestHeader("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
             postMethod.setRequestBody(nameValuePairs);
+            postMethod.setParameter(HttpMethodParams.HTTP_CONTENT_CHARSET, "utf-8");
             httpClient.executeMethod(postMethod);
+            System.out.println(postMethod.getResponseBodyAsString());
         } catch (Exception e) {
             e.printStackTrace();
         }

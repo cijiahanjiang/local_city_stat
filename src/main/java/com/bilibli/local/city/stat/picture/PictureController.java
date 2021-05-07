@@ -8,10 +8,10 @@ import com.jdcloud.sdk.utils.StringUtils;
 import eud.bupt.liujun.FileUtil;
 import eud.bupt.liujun.HttpUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -56,15 +56,26 @@ public class PictureController {
         }
     }
 
-    @PostConstruct
+    public void getData() {
+        List<PictureDO> data = pictureDAO.getData(1, Integer.MAX_VALUE);
+        Map<Long, Long> badCover = new HashMap<>();
+        for (PictureDO pictureDO : data) {
+            badCover.put(pictureDO.getDynamic_id(), pictureDO.getSrc_type());
+        }
+        Map<Long, String> coverMap = getCover(data);
+        for (Long l : coverMap.keySet()) {
+            FileUtil.appendFile(outputPath, String.format("%s,%s", coverMap.get(l), badCover.get(l) == 9));
+        }
+    }
+
     public void statPicture() throws InterruptedException {
         //创建线程池
         ThreadPoolExecutor executor = new ThreadPoolExecutor(20, 20,
                 10L, TimeUnit.SECONDS, new LinkedBlockingQueue());
-        FileUtil.appendFile(outputPath, "封面,相似行数,大小,色彩丰富度,色彩数,文本");
+        FileUtil.appendFile(outputPath, "封面,命中规则");
         Map<String, Object> resultMap = new ConcurrentHashMap<>();
         for (int i = 0; i < 100; i++) {
-            List<PictureDO> data = pictureDAO.listBadCover(i, Integer.MAX_VALUE);
+            List<PictureDO> data = pictureDAO.list(i, Integer.MAX_VALUE);
             Map<Long, String> coverMap = getCover(data);
             for (PictureDO pictureDO : data) {
                 executor.submit(() -> {
@@ -77,6 +88,9 @@ public class PictureController {
                     if (cover.contains(".gif")) {
                         return;
                     }
+                    if (cover.contains(".webp")) {
+                        return;
+                    }
                     try {
                         ImageUtil.ImageStat imageStat = ImageUtil.getPictureStat(cover);
                         words = getPictureWords(cover);
@@ -84,18 +98,15 @@ public class PictureController {
                             resultMap.put(String.format("%s,%d", cover, 1), 1);
                             return;
                         }
-                        if (imageStat.sameLineRate < 50) {
+                        if (imageStat.size < 80000 && imageStat.colors < 18000) {
                             resultMap.put(String.format("%s,%d", cover, 2), 1);
                             return;
                         }
-                        if (imageStat.size < 80000 && imageStat.colors < 18000) {
+                        if (imageStat.sameLineRate > 0 && words.length() > 30) {
                             resultMap.put(String.format("%s,%d", cover, 3), 1);
                             return;
                         }
-                        if (words.length() > 50) {
-                            resultMap.put(String.format("%s,%d", cover, 3), 1);
-                            return;
-                        }
+                        resultMap.put(String.format("%s,%d", cover, -1), 1);
                     } catch (Exception e) {
                         System.out.println("get cover stat failed,cover:" + cover);
                         return;
@@ -117,7 +128,6 @@ public class PictureController {
         for (String s : resultMap.keySet()) {
             FileUtil.appendFile(outputPath, s);
         }
-
     }
 
     private boolean heatRule(ImageUtil.ImageStat imageStat) {
@@ -232,4 +242,20 @@ public class PictureController {
         return "-1";
     }
 
+    @GetMapping("insertOnlineResult")
+    public void insertOnlineResult() {
+        List<String> tmp = FileUtil.readByLine("/Users/beibei/codes/java/local_city.stat/src/main/resources/final_result.csv");
+        for (String s : tmp) {
+            String[] sa = s.split(",", -1);
+            boolean flag = false;
+            for (int i = 2; i < sa.length - 1; i++) {
+                if ("1".equals(sa[i].trim())) {
+                    flag = true;
+                }
+            }
+            if (flag) {
+                pictureDAO.updateCvCover(sa[0]);
+            }
+        }
+    }
 }

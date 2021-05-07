@@ -1,18 +1,18 @@
 package com.bilibli.local.city.stat.picture;
 
 import com.bilibli.local.city.stat.new_user.CityDO;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.*;
 
 import java.util.List;
 
 @Mapper
 public interface PictureDAO {
 
-    @Select("SELECT * from t_city_pool_${city_id} where id<#{offset} and online=1 order by id desc limit 10")
+    @Select("SELECT * from t_city_pool_${city_id} where id<#{offset} and ctime<'20210323' and online=1 order by id desc limit 40")
     List<PictureDO> list(@Param("city_id") int city, @Param("offset") int offset);
+
+    @Select("SELECT * from t_city_pool_1 where id<#{offset} and ctime<'20210323' order by id desc limit 2000")
+    List<PictureDO> getData(@Param("city_id") int city, @Param("offset") int offset);
 
     @Select("SELECT * from t_city_pool_${city_id} where id<#{offset} and src_type=9 order by id desc limit 200")
     List<PictureDO> listBadCover(@Param("city_id") int city, @Param("offset") int offset);
@@ -40,4 +40,7 @@ public interface PictureDAO {
 
     @Select("SELECT id,city_name from t_city_info where status=0")
     List<CityDO> getCity();
+
+    @Insert("update cv_result set manual_result=1 where cover=#{cover}")
+    void updateCvCover(@Param("cover") String cover);
 }

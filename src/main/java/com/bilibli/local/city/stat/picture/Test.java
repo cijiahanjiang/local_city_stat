@@ -4,10 +4,8 @@ package com.bilibli.local.city.stat.picture;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.bilibli.local.city.stat.commom.ImageUtil;
-import eud.bupt.liujun.FileUtil;
 import eud.bupt.liujun.HttpUtil;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -18,25 +16,9 @@ public class Test {
     private static Map<String, Object> resultMap = new ConcurrentHashMap<>();
 
     public static void main(String[] args) throws Exception {
-        try {
-            List<String> covers = FileUtil.readByLine("/Users/beibei/codes/java/local_city.stat/src/main/resources/tmp.txt");
-
-            for (String cover : covers) {
-                cover = cover.split(",")[0];
-                if (cover.contains("gif")) {
-                    FileUtil.appendFile("/Users/beibei/codes/java/local_city.stat/src/main/resources/tmp1.txt", String.format("%s,%d,%d,%f,%f,%s", cover, 0, 0, 0.0, 0.0, ""));
-                } else {
-                    ImageUtil.ImageStat imageStat = ImageUtil.getPictureStat(cover);
-                    String words = "";
-                    if (imageStat.sameLineRate > 0) {
-                        words = getPictureWords(cover);
-                    }
-                    FileUtil.appendFile("/Users/beibei/codes/java/local_city.stat/src/main/resources/tmp1.txt", String.format("%s,%d,%d,%f,%f,%s", cover, imageStat.size, imageStat.colors, imageStat.sameLineRate, imageStat.colorRate, words));
-                }
-            }
-        } catch (Exception e) {
-
-        }
+        String sa = "http://i0.hdslb.com/bfs/aionecitycover/dfe73363e3f2ecc8779996915e2500513d222daa.jpg,FALSE,,,1,,,";
+        String[] tmp = sa.split(",",-1);
+        System.out.println(JSON.toJSONString(tmp));
     }
 
 
